@@ -1,5 +1,7 @@
 # Unreal Engine 4/5 Scripting System
 
+> **Linux port in progress:** This repository is currently being ported to native Linux and is not yet complete or ready for use. Do not use this build until further notice.
+
 Lua scripting system platform, C++ Modding API, SDK generator, blueprint mod loader, live property editor and other dumping utilities for UE4/5 games.
 
 ## Major features
