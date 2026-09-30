@@ -1,3 +1,12 @@
+#include <cstdio>
+
+#if defined(_WIN32)
+#elif defined(__linux__)
+static constexpr auto printf_s = &std::printf;
+#else
+#error "Diagnostic output is not supported on this platform"
+#endif
+
 #include <algorithm>
 #include <mutex>
 #include <stdexcept>

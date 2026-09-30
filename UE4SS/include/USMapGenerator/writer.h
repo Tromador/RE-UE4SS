@@ -1,6 +1,12 @@
 #pragma once
 
+#include <cerrno>
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <sstream>
+#include <string>
+#include <string_view>
 
 #include <DynamicOutput/DynamicOutput.hpp>
 #include <Helpers/String.hpp>
@@ -54,7 +60,22 @@ public:
 
     FORCEINLINE void Seek(int Pos, int Origin = SEEK_CUR) override
     {
-        m_Stream.seekp(Pos, Origin);
+        if (Origin == SEEK_SET)
+        {
+            m_Stream.seekp(Pos, std::ios_base::beg);
+        }
+        else if (Origin == SEEK_CUR)
+        {
+            m_Stream.seekp(Pos, std::ios_base::cur);
+        }
+        else if (Origin == SEEK_END)
+        {
+            m_Stream.seekp(Pos, std::ios_base::end);
+        }
+        else
+        {
+            m_Stream.setstate(std::ios_base::failbit);
+        }
     }
 
     uint32_t Size() override
@@ -80,6 +101,7 @@ class FileWriter : IBufferWriter
 
 public:
 
+    #if defined(_WIN32)
     FileWriter(const wchar_t* FileName)
     {
         auto fopen_r = _wfopen_s(&m_File, FileName, L"wb");
@@ -88,6 +110,20 @@ public:
             RC::Output::send<RC::LogLevel::Error>(STR("Unable to open file for writing: '{}': {}\n"), FileName, RC::ensure_str(std::strerror(fopen_r)));
         }
     }
+
+    #elif defined(__linux__)
+    FileWriter(const std::filesystem::path& FileName)
+    {
+        m_File = std::fopen(FileName.c_str(), "wb");
+        if (!m_File)
+        {
+            const auto fopen_r = errno;
+            RC::Output::send<RC::LogLevel::Error>(STR("Unable to open file for writing: '{}': {}\n"), RC::ensure_str(FileName), RC::ensure_str(std::strerror(fopen_r)));
+        }
+    }
+    #else
+    #error "USMap FileWriter is not supported on this platform"
+    #endif
 
     virtual ~FileWriter()
     {

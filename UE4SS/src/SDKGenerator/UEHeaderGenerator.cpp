@@ -1,5 +1,11 @@
 #define NOMINMAX
+#if defined(_WIN32)
 #include <Windows.h>
+#elif defined(__linux__)
+#include <filesystem>
+#else
+#error "UEHeaderGenerator executable detection is not supported on this platform"
+#endif
 #ifdef TEXT
 #undef TEXT
 #endif
@@ -4167,16 +4173,28 @@ namespace RC::UEGenerator
 
     auto UEHeaderGenerator::determine_primary_game_module_name() -> StringType
     {
+        #if defined(_WIN32)
         HMODULE primary_executable_module = GetModuleHandleW(NULL);
         CharType module_name_buffer[1024]{'\0'};
         GetModuleFileNameW(primary_executable_module, FromCharTypePtr<wchar_t>(module_name_buffer), ARRAYSIZE(module_name_buffer));
 
         // Retrieve the filename from the full path, strip down the extension
         FFilePath root_executable_path((StringType(module_name_buffer)));
+        #elif defined(__linux__)
+        FFilePath root_executable_path(std::filesystem::read_symlink("/proc/self/exe"));
+        #else
+        #error "UEHeaderGenerator executable detection is not supported on this platform"
+        #endif
         StringType filename = ensure_str(root_executable_path.filename().replace_extension());
 
         // Remove the shipping file postfix
+        #if defined(_WIN32)
         StringType shipping_postfix = STR("-Win64-Shipping");
+        #elif defined(__linux__)
+        StringType shipping_postfix = STR("-Linux-Shipping");
+        #else
+        #error "UEHeaderGenerator module names are not supported on this platform"
+        #endif
         if (filename.ends_with(shipping_postfix))
         {
             filename.erase(filename.length() - shipping_postfix.length());

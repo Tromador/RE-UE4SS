@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdio>
+#include <cstring>
+#include <cwchar>
 #include <string>
 
 #include <String/StringType.hpp>
@@ -25,7 +28,16 @@ namespace RC
         // The default message will be used which can't be too small since it's calculated at compile-time
         if (msg_len < out_string_length)
         {
+#if defined(_WIN32)
             sprintf_s(out_string, out_string_length, fmt, args...);
+#elif defined(__linux__)
+            if (std::snprintf(out_string, out_string_length, fmt, args...) < 0)
+            {
+                out_string[0] = '\0';
+            }
+#else
+#error "Helpers formatting is not supported on this platform"
+#endif
         }
 
         return out_string;
@@ -42,7 +54,7 @@ namespace RC
         // Attempt to give a hint if the buffer is too small
         if (msg_len > out_string_length)
         {
-            fmt = STR("An error occurred but the message was too long for the buffer.");
+            fmt = L"An error occurred but the message was too long for the buffer.";
             msg_len = wcslen(fmt);
         }
 
@@ -50,7 +62,16 @@ namespace RC
         // The default message will be used which can't be too small since it's calculated at compile-time
         if (msg_len < out_string_length)
         {
+#if defined(_WIN32)
             swprintf_s(out_string, out_string_length, fmt, args...);
+#elif defined(__linux__)
+            if (std::swprintf(out_string, out_string_length, fmt, args...) < 0)
+            {
+                out_string[0] = L'\0';
+            }
+#else
+#error "Helpers formatting is not supported on this platform"
+#endif
         }
 
         return out_string;

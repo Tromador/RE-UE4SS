@@ -1,9 +1,19 @@
 #pragma once
 
+#include <cstdio>
 #include <stdexcept>
+#include <type_traits>
 
 #include <DynamicOutput/DynamicOutput.hpp>
 #include <Helpers/String.hpp>
+
+#if defined(_WIN32)
+#define UE4SS_ERROR_PRINTF printf_s
+#elif defined(__linux__)
+#define UE4SS_ERROR_PRINTF std::printf
+#else
+#error "UE4SS exception diagnostics are not supported on this platform"
+#endif
 
 #define UE4SS_ERROR_OUTPUTTER()                                                                                                                                \
     if (!Output::has_internal_error())                                                                                                                         \
@@ -12,7 +22,7 @@
     }                                                                                                                                                          \
     else                                                                                                                                                       \
     {                                                                                                                                                          \
-        printf_s("Internal Error: %s\n", e.what());                                                                                                            \
+        UE4SS_ERROR_PRINTF("Internal Error: %s\n", e.what());                                                                                                            \
     }
 
 #ifndef SEH_DISABLE
@@ -27,7 +37,7 @@
 #endif
 
 // These macros should never be used in header files because you are required to include Windows.h.
-#ifdef _WIN32
+#if defined(_WIN32)
 #ifndef SEH_TRY
 #define SEH_TRY(Code)                                                                                                                                          \
     __try                                                                                                                                                      \
@@ -43,18 +53,20 @@
         }                                                                                                                                                      \
     }
 #endif
-#else
+#elif defined(__linux__)
 #ifndef SEH_TRY
 #define SEH_TRY(Code) Code
 #endif
 #ifndef SEH_EXCEPT
 #define SEH_EXCEPT(...)
 #endif
+#else
+#error "UE4SS SEH boundaries are not supported on this platform"
 #endif
 
 namespace RC
 {
-#ifdef _WIN32
+#if defined(_WIN32)
     enum SEH_FILTER_RESULT
     {
         EXECUTE_HANDLER = 1,

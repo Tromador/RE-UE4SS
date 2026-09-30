@@ -1,9 +1,11 @@
 #include <FilesystemWatcher.hpp>
 
-#ifdef _MSC_VER
+#if defined(_WIN32)
 #include "FilesystemWatcher_Windows.cpp_impl"
-#else
+#elif defined(__linux__)
 #include "FilesystemWatcher_Linux.cpp_impl"
+#else
+#error "FilesystemWatcher is not supported on this platform"
 #endif
 
 namespace RC

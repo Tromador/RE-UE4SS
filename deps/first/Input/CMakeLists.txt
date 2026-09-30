@@ -11,8 +11,15 @@ set(${TARGET}_Sources
         "${CMAKE_CURRENT_SOURCE_DIR}/src/PlatformInit.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/GLFW3InputSource.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/QueueInputSource.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Win32AsyncInputSource.cpp"
         )
+
+if(WIN32)
+    list(APPEND ${TARGET}_Sources "${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Win32AsyncInputSource.cpp")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Win32 desktop polling is unavailable; the shared input sources remain available.
+else()
+    message(FATAL_ERROR "Input is not supported on this platform")
+endif()
 
 string(REGEX REPLACE "(.)([A-Z])" "\\1_\\2" MODULE_NAME ${TARGET})
 string(TOUPPER ${MODULE_NAME} MODULE_NAME)
