@@ -2,6 +2,8 @@
 
 > **Linux port in progress:** This repository is currently being ported to native Linux and is not yet complete or ready for use. Do not use this build until further notice.
 
+> **Linux port dependency note:** Native Linux development tracks UEPseudo through [`Tromador/UEPseudo`](https://github.com/Tromador/UEPseudo) on its maintained `main` line, with `deps/first/Unreal` pinned to that fork by the parent repository. Historical Yangff Linux work and related UEPseudo pull-request material are donor/reference evidence only; they are not the maintained dependency line.
+
 Lua scripting system platform, C++ Modding API, SDK generator, blueprint mod loader, live property editor and other dumping utilities for UE4/5 games.
 
 ## Major features
