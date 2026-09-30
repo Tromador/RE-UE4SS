@@ -7,7 +7,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-enable_language(CXX ASM_MASM)
+enable_language(CXX)
+
+if(WIN32)
+    enable_language(ASM_MASM)
+endif()
 include(CheckIPOSupported)
 include(GNUInstallDirs)
 
@@ -87,7 +91,10 @@ setup_build_configuration()
 
 # Add subdirectories for dependencies and projects
 add_subdirectory("deps")
-add_subdirectory("cppmods")
+
+if(WIN32)
+    add_subdirectory("cppmods")
+endif()
 
 foreach(project ${PROJECTS})
     add_subdirectory(${project})

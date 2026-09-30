@@ -4,7 +4,9 @@ project(UE4SS)
 message("Configuring UE4SS")
 
 # Add proxy generator subproject
-add_subdirectory("proxy_generator")
+if(WIN32)
+    add_subdirectory("proxy_generator")
+endif()
 
 # Release settings
 option(UE4SS_LIB_BETA_IS_STARTED "Have beta releases started for the current major version" ON)
@@ -54,6 +56,20 @@ message("UE4SS Version: ${UE4SS_LIB_VERSION_MAJOR}.${UE4SS_LIB_VERSION_MINOR}.${
 # Find source files
 file(GLOB_RECURSE UE4SS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/**.cpp")
 file(GLOB_RECURSE UE4SS_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/**.hpp")
+
+# Platform-specific source ownership
+list(FILTER UE4SS_SOURCES EXCLUDE REGEX "/src/GUI/")
+list(FILTER UE4SS_SOURCES EXCLUDE REGEX "/src/CrashDumper\\.cpp$")
+list(FILTER UE4SS_SOURCES EXCLUDE REGEX "/src/main_ue4ss_rewritten\\.cpp$")
+
+if(WIN32)
+    file(GLOB_RECURSE UE4SS_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/GUI/**.cpp")
+    list(APPEND UE4SS_SOURCES
+        ${UE4SS_GUI_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/CrashDumper.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/main_ue4ss_rewritten.cpp"
+    )
+endif()
 
 # Create the main library
 add_library(UE4SS SHARED ${UE4SS_SOURCES})
@@ -145,10 +161,16 @@ target_link_libraries(UE4SS PUBLIC
 
 # Link third-party dependencies
 target_link_libraries(UE4SS PUBLIC
-    fmt ImGui PolyHook_2 
-    d3d11 glfw glad opengl32 
-    dbghelp psapi ws2_32 ntdll userenv
+    fmt PolyHook_2
 )
+
+if(WIN32)
+    target_link_libraries(UE4SS PUBLIC
+        ImGui
+        d3d11 glfw glad opengl32
+        dbghelp psapi ws2_32 ntdll userenv
+    )
+endif()
 
 # ---------------------------------------------------------------------------
 # Output Configuration

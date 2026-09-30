@@ -17,37 +17,39 @@ FetchContent_MakeAvailable(glaze)
 # Uses suppress_third_party_warnings() from cmake/modules/ThirdPartyWarnings.cmake
 suppress_third_party_warnings(glaze)
 
-# GLFW
-add_subdirectory("GLFW")
+if(WIN32)
+    # GLFW
+    add_subdirectory("GLFW")
 
-# glad (OpenGL loader)
-add_subdirectory("glad")
+    # glad (OpenGL loader)
+    add_subdirectory("glad")
 
-# ImGui and related libraries
-FetchContent_Declare(
-    ImGui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.92.1
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS ON
-)
-    
-FetchContent_Declare(
-    ImGuiTextEdit
-    GIT_REPOSITORY https://github.com/UE4SS-RE/ImGuiColorTextEdit.git
-    GIT_TAG v1.2.0
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS ON
-)
-    
-FetchContent_Declare(
-    IconFontCppHeaders
-    GIT_REPOSITORY https://github.com/juliettef/IconFontCppHeaders.git
-    GIT_TAG main
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS ON
-)
-add_subdirectory("imgui")
+    # ImGui and related libraries
+    FetchContent_Declare(
+        ImGui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.92.1
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS ON
+    )
+        
+    FetchContent_Declare(
+        ImGuiTextEdit
+        GIT_REPOSITORY https://github.com/UE4SS-RE/ImGuiColorTextEdit.git
+        GIT_TAG v1.2.0
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS ON
+    )
+        
+    FetchContent_Declare(
+        IconFontCppHeaders
+        GIT_REPOSITORY https://github.com/juliettef/IconFontCppHeaders.git
+        GIT_TAG main
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS ON
+    )
+    add_subdirectory("imgui")
+endif()
 
 # Zydis
 FetchContent_Declare(
