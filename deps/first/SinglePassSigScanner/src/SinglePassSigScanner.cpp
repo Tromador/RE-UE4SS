@@ -1,10 +1,17 @@
+#include <algorithm>
 #include <format>
 #include <future>
 #include <regex>
 
+#if defined(_WIN32)
 #define NOMINMAX
 #include <Windows.h>
 #include <Psapi.h>
+#elif defined(__linux__)
+#include <elf.h>
+#else
+#error "SinglePassSigScanner is not supported on this platform"
+#endif
 
 #include <fmt/core.h>
 #include <Profiler/Profiler.hpp>
@@ -19,6 +26,88 @@ namespace RC
     SinglePassScanner::ScanMethod SinglePassScanner::m_scan_method = ScanMethod::Scalar;
     uint32_t SinglePassScanner::m_multithreading_module_size_threshold = 0x1000000;
     std::mutex SinglePassScanner::m_scanner_mutex{};
+
+#if defined(__linux__)
+    using DWORD = unsigned long;
+
+    struct MEMORY_BASIC_INFORMATION
+    {
+        void* BaseAddress{};
+        size_t RegionSize{};
+        DWORD Protect{};
+        DWORD State{};
+    };
+
+    constexpr DWORD PAGE_NOACCESS = 1UL << 0;
+    constexpr DWORD PAGE_GUARD = 1UL << 1;
+    constexpr DWORD PAGE_READONLY = 1UL << 2;
+    constexpr DWORD PAGE_READWRITE = 1UL << 3;
+    constexpr DWORD PAGE_WRITECOPY = 1UL << 4;
+    constexpr DWORD PAGE_EXECUTE_READ = 1UL << 5;
+    constexpr DWORD PAGE_EXECUTE_READWRITE = 1UL << 6;
+    constexpr DWORD PAGE_EXECUTE_WRITECOPY = 1UL << 7;
+    constexpr DWORD MEM_COMMIT = 1UL << 8;
+
+    // Present readable ELF PT_LOAD segments to the existing scanner loops
+    // using their VirtualQuery-style region interface.
+    static auto VirtualQuery(const void* address, MEMORY_BASIC_INFORMATION* memory_info, size_t) -> size_t
+    {
+        auto* query_address = const_cast<uint8_t*>(static_cast<const uint8_t*>(address));
+        const LINUX_MODULEINFO* selected_module{};
+
+        for (const auto& module : SigScannerStaticData::m_modules_info.array)
+        {
+            auto* module_start = static_cast<uint8_t*>(module.lpBaseOfDll);
+            if (!module_start || module.SizeOfImage == 0)
+            {
+                continue;
+            }
+
+            auto* module_end = module_start + module.SizeOfImage;
+            if (query_address >= module_start && query_address < module_end)
+            {
+                selected_module = &module;
+                break;
+            }
+        }
+
+        if (!selected_module)
+        {
+            return 0;
+        }
+
+        auto* module_end = static_cast<uint8_t*>(selected_module->lpBaseOfDll) + selected_module->SizeOfImage;
+
+        for (const auto& [segment_start, segment_size, flags] : selected_module->readable_segments)
+        {
+            auto* segment_end = segment_start + segment_size;
+
+            if (query_address < segment_start)
+            {
+                memory_info->BaseAddress = query_address;
+                memory_info->RegionSize = static_cast<size_t>(segment_start - query_address);
+                memory_info->Protect = PAGE_NOACCESS;
+                memory_info->State = 0;
+                return sizeof(*memory_info);
+            }
+
+            if (query_address < segment_end)
+            {
+                memory_info->BaseAddress = query_address;
+                memory_info->RegionSize = static_cast<size_t>(segment_end - query_address);
+                memory_info->Protect = (flags & PF_R) != 0 ? PAGE_READONLY : PAGE_NOACCESS;
+                memory_info->State = (flags & PF_R) != 0 ? MEM_COMMIT : 0;
+                return sizeof(*memory_info);
+            }
+        }
+
+        memory_info->BaseAddress = query_address;
+        memory_info->RegionSize = static_cast<size_t>(module_end - query_address);
+        memory_info->Protect = PAGE_NOACCESS;
+        memory_info->State = 0;
+        return sizeof(*memory_info);
+    }
+#endif
 
     static auto ConvertHexCharToInt(char ch) -> int
     {
@@ -191,7 +280,7 @@ namespace RC
 
     auto SinglePassScanner::scanner_work_thread(uint8_t* start_address,
                                                 uint8_t* end_address,
-                                                SYSTEM_INFO& info,
+                                                SPSS_SYSTEM_INFO& info,
                                                 std::vector<SignatureContainer>& signature_containers) -> void
     {
         ProfilerSetThreadName("UE4SS-ScannerWorkThread");
@@ -210,7 +299,7 @@ namespace RC
 
     auto SinglePassScanner::scanner_work_thread_scalar(uint8_t* start_address,
                                                        uint8_t* end_address,
-                                                       SYSTEM_INFO& info,
+                                                       SPSS_SYSTEM_INFO& info,
                                                        std::vector<SignatureContainer>& signature_containers) -> void
     {
         ProfilerScope();
@@ -305,8 +394,8 @@ namespace RC
 
                             for (size_t sig_i = 0; sig_i < sig.size(); sig_i += 2)
                             {
-                                if (sig.at(sig_i) != -1 && sig.at(sig_i) != HI_NIBBLE(*(byte*)(region_start + (sig_i / 2))) ||
-                                    sig.at(sig_i + 1) != -1 && sig.at(sig_i + 1) != LO_NIBBLE(*(byte*)(region_start + (sig_i / 2))))
+                                if (sig.at(sig_i) != -1 && sig.at(sig_i) != HI_NIBBLE(*(uint8_t*)(region_start + (sig_i / 2))) ||
+                                    sig.at(sig_i + 1) != -1 && sig.at(sig_i + 1) != LO_NIBBLE(*(uint8_t*)(region_start + (sig_i / 2))))
                                 {
                                     break;
                                 }
@@ -400,7 +489,7 @@ namespace RC
 
     auto SinglePassScanner::scanner_work_thread_stdfind(uint8_t* start_address,
                                                         uint8_t* end_address,
-                                                        SYSTEM_INFO& info,
+                                                        SPSS_SYSTEM_INFO& info,
                                                         std::vector<SignatureContainer>& signature_containers) -> void
     {
         ProfilerScope();
@@ -529,8 +618,16 @@ namespace RC
 
     auto SinglePassScanner::start_scan(SignatureContainerMap& signature_containers) -> void
     {
-        SYSTEM_INFO info{};
+        SPSS_SYSTEM_INFO info{};
+
+#if defined(_WIN32)
         GetSystemInfo(&info);
+#elif defined(__linux__)
+        const auto& main_module = SigScannerStaticData::m_modules_info[ScanTarget::MainExe];
+        info.lpMinimumApplicationAddress = main_module.lpBaseOfDll;
+        info.lpMaximumApplicationAddress =
+            static_cast<uint8_t*>(main_module.lpBaseOfDll) + main_module.SizeOfImage;
+#endif
 
         // If not modular then the containers get merged into one scan target
         // That way there are no extra scans
@@ -538,12 +635,12 @@ namespace RC
 
         if (!SigScannerStaticData::m_is_modular)
         {
-            MODULEINFO merged_module_info{};
+            OS_MODULEINFO merged_module_info{};
             std::vector<SignatureContainer> merged_containers;
 
             for (const auto& [scan_target, outer_container] : signature_containers)
             {
-                merged_module_info = *std::bit_cast<MODULEINFO*>(&SigScannerStaticData::m_modules_info[scan_target]);
+                merged_module_info = SigScannerStaticData::m_modules_info[scan_target];
                 for (const auto& signature_container : outer_container)
                 {
                     merged_containers.emplace_back(signature_container);

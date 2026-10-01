@@ -8,11 +8,27 @@
 #include <SigScanner/Common.hpp>
 #include <Helpers/UETargetModules.hpp>
 
+#if defined(_WIN32)
+struct _SYSTEM_INFO;
+typedef _SYSTEM_INFO SYSTEM_INFO;
+#elif !defined(__linux__)
+#error "SinglePassSigScanner is not supported on this platform"
+#endif
+
 #define HI_NIBBLE(b) (((b) >> 4) & 0x0F)
 #define LO_NIBBLE(b) ((b) & 0x0F)
 
 namespace RC
 {
+#if defined(_WIN32)
+    using SPSS_SYSTEM_INFO = SYSTEM_INFO;
+#elif defined(__linux__)
+    struct SPSS_SYSTEM_INFO
+    {
+        void* lpMinimumApplicationAddress{};
+        void* lpMaximumApplicationAddress{};
+    };
+#endif
     // Static storage to be used across all sig scanner types
     // At the moment the only scanner type that exists is SinglePassScanner
     // In the future there might be a multi-threaded version of SinglePassScanner
@@ -157,15 +173,15 @@ namespace RC
       public:
         RC_SPSS_API auto static scanner_work_thread(uint8_t* start_address,
                                                     uint8_t* end_address,
-                                                    SYSTEM_INFO& info,
+                                                    SPSS_SYSTEM_INFO& info,
                                                     std::vector<SignatureContainer>& signature_containers) -> void;
         RC_SPSS_API auto static scanner_work_thread_scalar(uint8_t* start_address,
                                                            uint8_t* end_address,
-                                                           SYSTEM_INFO& info,
+                                                           SPSS_SYSTEM_INFO& info,
                                                            std::vector<SignatureContainer>& signature_containers) -> void;
         RC_SPSS_API auto static scanner_work_thread_stdfind(uint8_t* start_address,
                                                             uint8_t* end_address,
-                                                            SYSTEM_INFO& info,
+                                                            SPSS_SYSTEM_INFO& info,
                                                             std::vector<SignatureContainer>& signature_containers) -> void;
 
         using SignatureContainerMap = std::unordered_map<ScanTarget, std::vector<SignatureContainer>>;
